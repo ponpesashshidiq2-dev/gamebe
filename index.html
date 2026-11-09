@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Lari Belajar - Runner Edukasi</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- ================= HUD ================= -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="pill" id="hudScore">SKOR 0</div>
+    <div class="pill" id="hudCoins">KOIN 0</div>
+    <div class="pill" id="hudDist">0 M</div>
+    <div class="pill" id="hudLives">NYAWA 3</div>
+    <div class="pill" id="hudTime">WAKTU 0s</div>
+  </div>
+  <div class="qbar">
+    <div class="qbar-label" id="qLabel">Soal berikutnya</div>
+    <div class="qbar-track"><div id="qFill"></div></div>
+  </div>
+  <button id="btnPause" class="btn small ghost">Jeda (P)</button>
+</div>
+
+<!-- ================= MENU ================= -->
+<section id="menu" class="screen">
+  <div class="card">
+    <h1>LARI BELAJAR</h1>
+    <p class="subtitle">Lari bergaya Subway Surfers, berhenti setiap jarak tertentu untuk mengerjakan soal. Wajib benar untuk lanjut berlari!</p>
+
+    <div class="stat-row">
+      <span class="chip">REKOR: <b id="bestScore">0</b></span>
+      <span class="chip">BANK SOAL: <b id="bankInfo">0</b></span>
+    </div>
+
+    <label class="field">
+      <span>Kesulitan</span>
+      <div class="seg" id="diffSeg">
+        <button data-diff="mudah">Mudah</button>
+        <button data-diff="sedang" class="on">Sedang</button>
+        <button data-diff="sulit">Sulit</button>
+      </div>
+    </label>
+
+    <label class="field">
+      <span>Jeda berhenti (jarak antar soal): <b id="intVal">700</b> m</span>
+      <input type="range" id="intervalRange" min="250" max="2000" step="50" value="700">
+      <small>Makin kecil, makin sering berhenti mengerjakan soal.</small>
+    </label>
+
+    <div class="btn-row">
+      <button id="btnPlay" class="btn primary">MULAI BERLARI</button>
+      <button id="btnImport" class="btn">IMPOR SOAL</button>
+      <button id="btnBank" class="btn ghost">LIHAT BANK SOAL</button>
+    </div>
+
+    <div class="help">
+      <b>Kontrol:</b> A / D atau ← → geser lajur &nbsp;·&nbsp; SPASI / ↑ lompat &nbsp;·&nbsp; P jeda &nbsp;·&nbsp; Sentuh: usap kiri/kanan/atas &nbsp;·&nbsp; Saat soal: tekan 1-4
+    </div>
+  </div>
+</section>
+
+<!-- ================= QUESTION ================= -->
+<div id="questionModal" class="modal hidden">
+  <div class="card qcard">
+    <div class="qtop">
+      <span class="chip" id="qSubject">Umum</span>
+      <span class="chip" id="qCounter">Soal 1</span>
+      <span class="chip" id="qTimer">0s</span>
+    </div>
+    <h2 id="qText">Soal?</h2>
+    <div id="qOptions" class="options"></div>
+    <div id="qFeedback" class="feedback"></div>
+    <div class="btn-row">
+      <button id="qBtnContinue" class="btn primary hidden">LANJUT BERLARI</button>
+    </div>
+    <p class="hint">Jeda sampai jawaban benar, baru lari dilanjutkan.</p>
+  </div>
+</div>
+
+<!-- ================= IMPORT / BANK ================= -->
+<div id="importModal" class="modal hidden">
+  <div class="card wide">
+    <h2>Kelola Soal</h2>
+    <p class="subtitle">Format JSON: <code>[{"question":"...","options":["a","b","c","d"],"answer":0,"subject":"Matematika"}]</code></p>
+    <p class="subtitle">Format CSV (pisahkan <code>;</code> atau <code>,</code>): <code>pertanyaan;opsi_a;opsi_b;opsi_c;opsi_d;jawaban;subjek</code> — jawaban boleh berupa angka 1-4, huruf A-D, atau teks opsi.</p>
+
+    <div class="btn-row">
+      <label class="btn primary filebtn">PILIH FILE (.json / .csv)
+        <input type="file" id="fileInput" accept=".json,.csv,.txt,application/json,text/csv" hidden>
+      </label>
+      <button id="btnTemplate" class="btn">UNDUH TEMPLATE</button>
+      <button id="btnResetBank" class="btn ghost">HAPUS HASIL IMPOR</button>
+    </div>
+
+    <div class="drop" id="dropZone">atau seret file ke sini</div>
+
+    <label class="field">
+      <span>Atau tempel soal di sini (JSON / CSV)</span>
+      <textarea id="pasteArea" rows="5" placeholder='[{"question":"1+1=?","options":["2","3","4","5"],"answer":0}]'></textarea>
+    </label>
+    <div class="btn-row">
+      <button id="btnPasteImport" class="btn">IMPOR DARI TEKS</button>
+    </div>
+
+    <div id="importResult" class="result"></div>
+
+    <div class="bank-list-wrap">
+      <h3>Isi Bank Soal (<span id="bankCount">0</span>)</h3>
+      <ul id="bankList"></ul>
+    </div>
+
+    <div class="btn-row">
+      <button id="btnCloseImport" class="btn ghost">TUTUP</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PAUSE ================= -->
+<div id="pauseModal" class="modal hidden">
+  <div class="card center">
+    <h2>JEDA</h2>
+    <div class="btn-row">
+      <button id="btnResume" class="btn primary">LANJUT</button>
+      <button id="btnQuit" class="btn ghost">KE MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= GAME OVER ================= -->
+<div id="gameOver" class="modal hidden">
+  <div class="card center">
+    <h2>PERMAINAN SELESAI</h2>
+    <div id="goStats" class="stats"></div>
+    <div class="btn-row">
+      <button id="btnRestart" class="btn primary">MAIN LAGI</button>
+      <button id="btnMenu" class="btn ghost">KE MENU</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="game.js"></script>
+</body>
+</html>
