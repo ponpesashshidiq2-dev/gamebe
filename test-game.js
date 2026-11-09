@@ -152,6 +152,16 @@ ok(getEl('btnImport').classList.contains('hidden'), 'pemain TIDAK melihat tombol
 ok(getEl('adminTools').classList.contains('hidden'), 'pemain TIDAK melihat perangkat impor');
 ok(getEl('whoami').innerHTML.indexOf('Budi') >= 0, 'menu menampilkan nama pemain');
 
+/* sandi admin: bawaan selalu berlaku + reset tanpa console */
+run('store.set(LS.admin, {user:"admin", pass:"rahasia1"});');
+ok(run('loginAdmin("admin","rahasia1").ok') === true, 'sandi tersimpan tetap bisa masuk');
+ok(run('loginAdmin("admin","admin123").ok') === true, 'sandi bawaan admin123 tetap bisa masuk meski ada sandi tersimpan');
+ok(run('loginAdmin("admin","salah").ok') === false, 'sandi salah tetap ditolak');
+ok(run('loginAdmin("admin","salah").msg').indexOf('rahasia1') >= 0, 'pesan galat menampilkan sandi tersimpan di perangkat');
+run('resetAdminCreds()');
+ok(run('adminCreds().pass') === 'admin123', 'resetAdminCreds mengembalikan sandi bawaan');
+run('logout(); loginPlayer("Budi");');
+
 ok(getEl('bankInfo').textContent.indexOf(String(expectedBank)) >= 0, 'menu: bank soal kelas 1 = ' + expectedBank + ' (' + getEl('bankInfo').textContent + ')');
 ok(String(getEl('bankCount').textContent) === String(expectedBank), 'daftar bank berisi ' + expectedBank + ' soal');
 

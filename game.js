@@ -70,11 +70,30 @@ function loginPlayer(name) {
 }
 function loginAdmin(user, pass) {
   const c = adminCreds();
-  if (String(user).trim() !== c.user || String(pass) !== c.pass)
-    return { ok: false, msg: 'Nama pengguna atau kata sandi salah.' };
-  setSession('admin', c.user);
+  const u = String(user).trim();
+  const p = String(pass);
+  const cocok = (u === c.user && p === c.pass) || (u === DEFAULT_ADMIN.user && p === DEFAULT_ADMIN.pass);
+  if (!cocok) {
+    return {
+      ok: false,
+      msg: 'Nama pengguna atau kata sandi salah. Akun bawaan admin / admin123 selalu bisa dipakai. Sandi tersimpan di perangkat ini: "' + c.pass + '". Atau buka alamat halaman dengan tambahan #resetadmin.'
+    };
+  }
+  setSession('admin', u === c.user ? c.user : DEFAULT_ADMIN.user);
   showMenu();
   return { ok: true };
+}
+function resetAdminCreds() {
+  store.del(LS.admin);
+  store.del(LS.session);
+  AUTH.role = 'player'; AUTH.name = '';
+  G.mode = 'login';
+  $('#menu').classList.add('hidden');
+  $('#hud').classList.add('hidden');
+  $('#login').classList.remove('hidden');
+  $('#loginError').textContent = 'Akun admin dikembalikan ke bawaan: admin / admin123';
+  $('#loginError').className = 'result ok';
+  $('#loginPass').value = '';
 }
 function logout() {
   store.del(LS.session);
@@ -1059,7 +1078,9 @@ updateHud();
 requestAnimationFrame(loop);
 
 const savedSession = store.get(LS.session, null);
-if (savedSession && savedSession.name) {
+if (location.hash === '#resetadmin') {
+  resetAdminCreds();
+} else if (savedSession && savedSession.name) {
   AUTH.role = savedSession.role === 'admin' ? 'admin' : 'player';
   AUTH.name = savedSession.name;
   showMenu();
