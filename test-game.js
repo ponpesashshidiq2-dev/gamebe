@@ -66,7 +66,7 @@ function getEl(sel) {
   if (id === 'toast') e.classList.add('toast', 'hidden');
   else e.classList.add('modal', 'hidden');
 });
-getEl('menu').classList.add('screen');
+getEl('menu').classList.add('screen', 'hidden');
 getEl('qOptions').classList.add('options');
 
 const ctxStub = new Proxy({}, {
@@ -110,6 +110,8 @@ sandbox.window.document = documentStub;
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 
+const srcSoal = fs.readFileSync(path.join(__dirname, 'soal.js'), 'utf8');
+vm.runInContext(srcSoal, sandbox, { filename: 'soal.js' });
 const src = fs.readFileSync(path.join(__dirname, 'game.js'), 'utf8');
 vm.runInContext(src, sandbox, { filename: 'game.js' });
 
@@ -126,10 +128,38 @@ function frames(n, ms) {
 let fail = 0;
 function ok(cond, msg) { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) fail++; }
 
-/* ---------- 1. menu & bank ---------- */
-ok(getEl('bankInfo').textContent.indexOf('18') >= 0, 'menu: bank soal bawaan 18 (' + getEl('bankInfo').textContent + ')');
-ok(String(getEl('bankCount').textContent) === '18', 'daftar bank berisi 18 soal');
-ok(getEl('menu').classList.contains('screen') && !getEl('menu').classList.contains('hidden'), 'menu tampil');
+/* ---------- 1. login, menu & bank ---------- */
+const expectedBank = run('BANK_BY_CLASS[G.kelas].length');
+ok(run('G.mode') === 'login', 'layar login tampil di awal');
+ok(getEl('menu').classList.contains('hidden'), 'menu tersembunyi sebelum masuk');
+
+ok(run('loginPlayer("").ok') === false, 'nama kosong ditolak');
+ok(run('loginAdmin("admin","salah").ok') === false, 'password admin salah ditolak');
+ok(run('loginAdmin("admin","admin123").ok') === true, 'login admin dengan sandi bawaan berhasil');
+run('logout()');
+ok(run('G.mode') === 'login', 'logout kembali ke layar login');
+ok(run('loginPlayer("Budi").ok') === true, 'pemain masuk cukup dengan nama');
+ok(!getEl('menu').classList.contains('hidden'), 'menu tampil setelah login');
+ok(getEl('login').classList.contains('hidden'), 'layar login disembunyikan');
+ok(run('isAdmin()') === false, 'pemain bukan admin');
+
+/* akses berdasarkan peran */
+run('logout(); loginAdmin("admin", adminCreds().pass);');
+ok(!getEl('btnImport').classList.contains('hidden'), 'admin melihat tombol kelola soal');
+ok(!getEl('adminTools').classList.contains('hidden'), 'admin melihat perangkat impor');
+run('logout(); loginPlayer("Budi");');
+ok(getEl('btnImport').classList.contains('hidden'), 'pemain TIDAK melihat tombol kelola soal');
+ok(getEl('adminTools').classList.contains('hidden'), 'pemain TIDAK melihat perangkat impor');
+ok(getEl('whoami').innerHTML.indexOf('Budi') >= 0, 'menu menampilkan nama pemain');
+
+ok(getEl('bankInfo').textContent.indexOf(String(expectedBank)) >= 0, 'menu: bank soal kelas 1 = ' + expectedBank + ' (' + getEl('bankInfo').textContent + ')');
+ok(String(getEl('bankCount').textContent) === String(expectedBank), 'daftar bank berisi ' + expectedBank + ' soal');
+
+/* ganti kelas mengganti bank soal */
+const bankKelas5 = run('(G.kelas = 5, store.set(LS.kelas, 5), buildBank(), refreshMenu(), renderBankList(), G.bank.length)');
+ok(bankKelas5 === run('BANK_BY_CLASS[5].length'), 'pindah ke kelas 5 memakai bank kelas 5 (' + bankKelas5 + ' soal)');
+ok(String(getEl('bankKelas').textContent) === '5', 'judul daftar bank menampilkan kelas 5');
+run('G.kelas = 1; store.set(LS.kelas, 1); buildBank(); refreshMenu();');
 
 /* ---------- 2. mulai & lari ---------- */
 run('startGame()');
@@ -224,7 +254,7 @@ ok(Number(run('G.score')) > 0, 'skor terhitung');
 
 /* ---------- 10. main lagi & ke menu ---------- */
 run('startGame()');
-ok(run('G.mode') === 'running' && run('G.lives') === (run('G.diff') === 'mudah' ? 5 : 3), 'restart mereset nyawa');
+ok(run('G.mode') === 'running' && run('G.lives') === run('levelOf(G.kelas).lives'), 'restart mereset nyawa sesuai kelas');
 run('toMenu()');
 ok(run('G.mode') === 'menu' && !getEl('menu').classList.contains('hidden'), 'kembali ke menu');
 
@@ -246,7 +276,7 @@ ok(run('G.bank.length') === bankBefore + 3, 'impor JSON menambah 1 soal');
 ok(run('G.bank.filter(x => x.src === "impor").length') === 3, 'soal impor ditandai');
 
 run('store.set(LS.bank, []); buildBank(); refreshMenu();');
-ok(run('G.bank.length') === 18, 'reset bank kembali ke bawaan');
+ok(run('G.bank.length') === run('BANK_BY_CLASS[1].length'), 'reset bank kembali ke soal bawaan kelas 1');
 
 /* ---------- 12. soal impor dipakai di permainan ---------- */
 run('startGame(); G.nextQ = G.dist + 2;');

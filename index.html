@@ -13,9 +13,11 @@
 <!-- ================= HUD ================= -->
 <div id="hud" class="hidden">
   <div class="hud-top">
+    <div class="pill" id="hudWho">PEMAIN</div>
     <div class="pill" id="hudScore">SKOR 0</div>
     <div class="pill" id="hudCoins">KOIN 0</div>
     <div class="pill" id="hudDist">0 M</div>
+    <div class="pill" id="hudKelas">KELAS 1</div>
     <div class="pill" id="hudLives">NYAWA 3</div>
     <div class="pill" id="hudTime">WAKTU 0s</div>
   </div>
@@ -26,24 +28,70 @@
   <button id="btnPause" class="btn small ghost">Jeda (P)</button>
 </div>
 
+<!-- ================= LOGIN ================= -->
+<section id="login" class="screen">
+  <div class="card">
+    <h1>LARI BELAJAR</h1>
+    <p class="subtitle">Masuk dulu sebelum berlari. Pemain cukup menulis nama saja (tanpa kata sandi), admin memakai nama pengguna dan kata sandi.</p>
+
+    <label class="field">
+      <span>Masuk sebagai</span>
+      <div class="seg" id="roleSeg">
+        <button data-role="player" class="on">PEMAIN</button>
+        <button data-role="admin">ADMIN</button>
+      </div>
+    </label>
+
+    <div id="fPlayer">
+      <label class="field">
+        <span>Nama Pemain</span>
+        <input type="text" id="loginName" class="textin" placeholder="Contoh: Budi" maxlength="24" autocomplete="off">
+        <small>Tanpa kata sandi. Nama dipakai untuk menampilkan skor dan peringkat.</small>
+      </label>
+    </div>
+
+    <div id="fAdmin" class="hidden">
+      <label class="field">
+        <span>Nama Pengguna</span>
+        <input type="text" id="loginUser" class="textin" value="admin" autocomplete="username">
+      </label>
+      <label class="field">
+        <span>Kata Sandi</span>
+        <input type="password" id="loginPass" class="textin" autocomplete="current-password">
+        <small>Akun bawaan: admin / admin123 (bisa diganti setelah masuk).</small>
+      </label>
+    </div>
+
+    <div class="btn-row">
+      <button id="btnLogin" class="btn primary">MASUK</button>
+    </div>
+    <div id="loginError" class="result err"></div>
+  </div>
+</section>
+
 <!-- ================= MENU ================= -->
-<section id="menu" class="screen">
+<section id="menu" class="screen hidden">
   <div class="card">
     <h1>LARI BELAJAR</h1>
     <p class="subtitle">Lari bergaya Subway Surfers, berhenti setiap jarak tertentu untuk mengerjakan soal. Wajib benar untuk lanjut berlari!</p>
 
     <div class="stat-row">
+      <span class="chip" id="whoami">PEMAIN</span>
       <span class="chip">REKOR: <b id="bestScore">0</b></span>
       <span class="chip">BANK SOAL: <b id="bankInfo">0</b></span>
     </div>
 
     <label class="field">
-      <span>Kesulitan</span>
-      <div class="seg" id="diffSeg">
-        <button data-diff="mudah">Mudah</button>
-        <button data-diff="sedang" class="on">Sedang</button>
-        <button data-diff="sulit">Sulit</button>
+      <span>Kelas: <b id="kelasVal">1</b> (soal Kurikulum Merdeka)</span>
+      <div class="seg" id="kelasSeg">
+        <button data-kelas="1" class="on">1</button>
+        <button data-kelas="2">2</button>
+        <button data-kelas="3">3</button>
+        <button data-kelas="4">4</button>
+        <button data-kelas="5">5</button>
+        <button data-kelas="6">6</button>
       </div>
+      <small>Pilih kelas sesuai jenjang, maka soal yang keluar sesuai materi kelas tersebut.</small>
     </label>
 
     <label class="field">
@@ -54,8 +102,14 @@
 
     <div class="btn-row">
       <button id="btnPlay" class="btn primary">MULAI BERLARI</button>
-      <button id="btnImport" class="btn">IMPOR SOAL</button>
-      <button id="btnBank" class="btn ghost">LIHAT BANK SOAL</button>
+      <button id="btnBank" class="btn">LIHAT BANK SOAL</button>
+      <button id="btnImport" class="btn hidden">KELOLA SOAL (ADMIN)</button>
+      <button id="btnLogout" class="btn ghost">KELUAR</button>
+    </div>
+
+    <div class="score-wrap">
+      <h3>Peringkat Skor Teratas</h3>
+      <ul id="scoreList"></ul>
     </div>
 
     <div class="help">
@@ -85,9 +139,10 @@
 <!-- ================= IMPORT / BANK ================= -->
 <div id="importModal" class="modal hidden">
   <div class="card wide">
-    <h2>Kelola Soal</h2>
+    <h2 id="importTitle">Kelola Soal</h2>
+    <div id="adminTools" class="hidden">
     <p class="subtitle">Format JSON: <code>[{"question":"...","options":["a","b","c","d"],"answer":0,"subject":"Matematika"}]</code></p>
-    <p class="subtitle">Format CSV (pisahkan <code>;</code> atau <code>,</code>): <code>pertanyaan;opsi_a;opsi_b;opsi_c;opsi_d;jawaban;subjek</code> — jawaban boleh berupa angka 1-4, huruf A-D, atau teks opsi.</p>
+    <p class="subtitle">Format CSV (pisahkan <code>;</code> atau <code>,</code>): <code>pertanyaan;opsi_a;opsi_b;opsi_c;opsi_d;jawaban;subjek</code> — jawaban boleh berupa angka 1-4, huruf A-D, atau teks opsi. Soal impor otomatis masuk ke kelas yang sedang dipilih.</p>
 
     <div class="btn-row">
       <label class="btn primary filebtn">PILIH FILE (.json / .csv)
@@ -109,8 +164,18 @@
 
     <div id="importResult" class="result"></div>
 
+    <div id="passBox">
+      <h3>Ganti Kata Sandi Admin</h3>
+      <div class="btn-row">
+        <input type="password" id="newPass" class="textin inline" placeholder="Kata sandi baru" autocomplete="new-password">
+        <button id="btnPass" class="btn">SIMPAN SANDI</button>
+      </div>
+      <div id="passResult" class="result"></div>
+    </div>
+    </div>
+
     <div class="bank-list-wrap">
-      <h3>Isi Bank Soal (<span id="bankCount">0</span>)</h3>
+      <h3>Isi Bank Soal Kelas <span id="bankKelas">1</span> (<span id="bankCount">0</span>)</h3>
       <ul id="bankList"></ul>
     </div>
 
@@ -145,6 +210,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
+<script src="soal.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

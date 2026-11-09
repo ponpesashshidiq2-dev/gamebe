@@ -44,22 +44,82 @@ const DEFAULT_QUESTIONS = [
 ];
 
 /* ==================== PENYIMPANAN ==================== */
-const LS = { best: 'lb_best', bank: 'lb_bank', interval: 'lb_interval', diff: 'lb_diff' };
+const LS = { best: 'lb_best', bank: 'lb_bank', interval: 'lb_interval', kelas: 'lb_kelas', session: 'lb_session', admin: 'lb_admin', scores: 'lb_scores' };
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
 };
+
+/* ==================== LOGIN (ADMIN & PEMAIN) ==================== */
+const DEFAULT_ADMIN = { user: 'admin', pass: 'admin123' };
+const AUTH = { role: 'player', name: '' };
+function adminCreds() { return store.get(LS.admin, DEFAULT_ADMIN); }
+function isAdmin() { return AUTH.role === 'admin'; }
+function setSession(role, name) {
+  AUTH.role = role;
+  AUTH.name = name;
+  store.set(LS.session, { role: role, name: name });
+}
+function loginPlayer(name) {
+  const n = String(name || '').trim().slice(0, 24);
+  if (!n) return { ok: false, msg: 'Nama pemain tidak boleh kosong.' };
+  setSession('player', n);
+  showMenu();
+  return { ok: true };
+}
+function loginAdmin(user, pass) {
+  const c = adminCreds();
+  if (String(user).trim() !== c.user || String(pass) !== c.pass)
+    return { ok: false, msg: 'Nama pengguna atau kata sandi salah.' };
+  setSession('admin', c.user);
+  showMenu();
+  return { ok: true };
+}
+function logout() {
+  store.del(LS.session);
+  AUTH.role = 'player'; AUTH.name = '';
+  G.mode = 'login';
+  $('#menu').classList.add('hidden');
+  $('#hud').classList.add('hidden');
+  $('#login').classList.remove('hidden');
+  $('#loginError').textContent = '';
+  $('#loginPass').value = '';
+}
+function showMenu() {
+  G.mode = 'menu';
+  $('#login').classList.add('hidden');
+  $('#menu').classList.remove('hidden');
+  $('#hud').classList.add('hidden');
+  $('#gameOver').classList.add('hidden');
+  $('#questionModal').classList.add('hidden');
+  $('#pauseModal').classList.add('hidden');
+  applyRoleUI();
+  refreshMenu();
+}
+function applyRoleUI() {
+  const admin = isAdmin();
+  $('#btnImport').classList.toggle('hidden', !admin);
+  $('#adminTools').classList.toggle('hidden', !admin);
+  $('#passBox').classList.toggle('hidden', !admin);
+  $('#importTitle').textContent = admin ? 'Kelola Soal' : 'Bank Soal';
+  $('#whoami').innerHTML = (admin ? 'ADMIN: ' : 'PEMAIN: ') + '<b>' + escapeHtml(AUTH.name) + '</b>';
+}
 
 /* ==================== STATE ==================== */
-const DIFFS = {
-  mudah: { speed: 10, max: 16, gap: 20, lives: 5 },
-  sedang: { speed: 13, max: 21, gap: 16, lives: 3 },
-  sulit: { speed: 16, max: 26, gap: 13, lives: 3 }
+const KELAS_LEVEL = {
+  1: { speed: 10, max: 16, gap: 20, lives: 5 },
+  2: { speed: 11, max: 18, gap: 19, lives: 5 },
+  3: { speed: 13, max: 21, gap: 16, lives: 4 },
+  4: { speed: 14, max: 23, gap: 15, lives: 4 },
+  5: { speed: 15, max: 25, gap: 14, lives: 3 },
+  6: { speed: 16, max: 27, gap: 13, lives: 3 }
 };
+function levelOf(k) { return KELAS_LEVEL[k] || KELAS_LEVEL[1]; }
 
 const G = {
-  mode: 'menu',
-  diff: store.get(LS.diff, 'sedang'),
+  mode: 'login',
+  kelas: clamp(parseInt(store.get(LS.kelas, 1), 10) || 1, 1, 6),
   interval: store.get(LS.interval, 700),
   dist: 0, speed: 13, time: 0,
   score: 0, coins: 0, lives: 3,
@@ -72,12 +132,20 @@ const G = {
   invuln: 0, shake: 0, flash: 0
 };
 
+const BANK_BY_KELAS = (typeof BANK_BY_CLASS !== 'undefined') ? BANK_BY_CLASS : null;
+
+function shuffleOptions(o) {
+  const perm = shuffle(o.opts.map((_, i) => i));
+  return { q: o.q, opts: perm.map(i => o.opts[i]), ans: perm.indexOf(o.ans), subj: o.subj, src: o.src, kelas: o.kelas };
+}
 function buildBank() {
-  const custom = store.get(LS.bank, []);
-  const base = DEFAULT_QUESTIONS.map(normalizeDefault);
+  const kelas = G.kelas;
+  const custom = store.get(LS.bank, []).filter(c => Number(c.kelas || kelas) === kelas);
+  const raw = (BANK_BY_KELAS && BANK_BY_KELAS[kelas]) || DEFAULT_QUESTIONS;
+  const base = raw.map(normalizeDefault);
   const ok = [];
   custom.forEach(c => { const n = normalizeAny(c); if (n) ok.push(n); });
-  G.bank = ok.concat(base);
+  G.bank = ok.concat(base).map(shuffleOptions);
   G.queue = shuffle(G.bank.map((_, i) => i));
   G.qi = 0;
 }
@@ -117,7 +185,7 @@ function project(lx, d) {
 
 /* ==================== GAME FLOW ==================== */
 function resetGame() {
-  const d = DIFFS[G.diff] || DIFFS.sedang;
+  const d = levelOf(G.kelas);
   G.dist = 0; G.speed = d.speed; G.time = 0;
   G.score = 0; G.coins = 0; G.lives = d.lives;
   G.lane = 0; G.x = 0; G.y = 0; G.vy = 0;
@@ -129,6 +197,7 @@ function resetGame() {
   G.queue = shuffle(G.bank.map((_, i) => i)); G.qi = 0;
 }
 function startGame() {
+  if (G.mode === 'login') return;
   resetGame();
   G.mode = 'running';
   $('#menu').classList.add('hidden');
@@ -137,18 +206,34 @@ function startGame() {
   $('#pauseModal').classList.add('hidden');
 }
 function toMenu() {
-  G.mode = 'menu';
-  $('#menu').classList.remove('hidden');
-  $('#hud').classList.add('hidden');
-  $('#gameOver').classList.add('hidden');
-  $('#pauseModal').classList.add('hidden');
-  $('#questionModal').classList.add('hidden');
-  refreshMenu();
+  showMenu();
+}
+function saveScore() {
+  const arr = store.get(LS.scores, []);
+  arr.push({
+    name: AUTH.name || 'Tamu',
+    role: AUTH.role,
+    kelas: G.kelas,
+    score: Math.floor(G.score),
+    at: Date.now()
+  });
+  arr.sort((a, b) => b.score - a.score);
+  store.set(LS.scores, arr.slice(0, 30));
+}
+function renderScores() {
+  const ul = $('#scoreList');
+  if (!ul) return;
+  const arr = store.get(LS.scores, []).slice(0, 5);
+  ul.innerHTML = arr.length
+    ? arr.map((s, i) => `<li><b>#${i + 1}</b> ${escapeHtml(s.name)} <span class="src">Kelas ${s.kelas} · ${s.score} poin</span></li>`).join('')
+    : '<li class="src">Belum ada skor. Jadilah yang pertama!</li>';
 }
 function gameOver() {
   G.mode = 'over';
   const best = Math.max(store.get(LS.best, 0), Math.floor(G.score));
   store.set(LS.best, best);
+  saveScore();
+  renderScores();
   const acc = G.asked ? Math.round(G.firstTry / G.asked * 100) : 0;
   $('#goStats').innerHTML = [
     ['Jarak', Math.floor(G.dist) + ' m'],
@@ -181,7 +266,7 @@ function openQuestion() {
   G.qOpenAt = performance.now();
   G.qStartInterval = G.qStartInterval || G.interval;
 
-  $('#qSubject').textContent = G.current.subj;
+  $('#qSubject').textContent = 'Kelas ' + G.kelas + ' · ' + G.current.subj;
   $('#qCounter').textContent = 'Soal ' + (G.asked + 1);
   $('#qText').textContent = G.current.q;
   $('#qFeedback').textContent = '';
@@ -289,7 +374,7 @@ function update(dt) {
   }
   if (G.mode !== 'running') return;
 
-  const d = DIFFS[G.diff] || DIFFS.sedang;
+  const d = levelOf(G.kelas);
   G.time += dt;
   G.speed = Math.min(d.max, d.speed + dt * 0.16);
   G.dist += G.speed * dt;
@@ -365,6 +450,8 @@ function updateParts(dt) {
 }
 
 function updateHud() {
+  $('#hudWho').textContent = (isAdmin() ? 'ADMIN ' : 'PEMAIN ') + (AUTH.name || 'Tamu');
+  $('#hudKelas').textContent = 'KELAS ' + G.kelas;
   $('#hudScore').textContent = 'SKOR ' + Math.floor(G.score);
   $('#hudCoins').textContent = 'KOIN ' + G.coins;
   $('#hudDist').textContent = Math.floor(G.dist) + ' M';
@@ -767,7 +854,8 @@ function parseQuestions(text) {
 }
 function saveCustom(list) {
   const cur = store.get(LS.bank, []);
-  const merged = cur.concat(list);
+  const tagged = list.map(o => Object.assign({}, o, { kelas: G.kelas }));
+  const merged = cur.concat(tagged);
   store.set(LS.bank, merged);
   buildBank();
 }
@@ -776,7 +864,7 @@ function importText(text, origin) {
   const box = $('#importResult');
   if (res.list.length) saveCustom(res.list);
   let msg = '';
-  if (res.list.length) msg += 'Berhasil impor ' + res.list.length + ' soal dari ' + origin + '.\n';
+  if (res.list.length) msg += 'Berhasil impor ' + res.list.length + ' soal dari ' + origin + ' ke Kelas ' + G.kelas + '.\n';
   if (res.errors.length) msg += 'Dilewati ' + res.errors.length + ' baris:\n- ' + res.errors.slice(0, 6).join('\n- ');
   box.textContent = msg.trim() || 'Tidak ada soal yang terbaca.';
   box.className = 'result ' + (res.list.length ? 'ok' : 'err');
@@ -792,14 +880,18 @@ function renderBankList() {
     ul.appendChild(li);
   });
   $('#bankCount').textContent = G.bank.length;
+  $('#bankKelas').textContent = G.kelas;
 }
 function refreshMenu() {
   $('#bestScore').textContent = store.get(LS.best, 0);
-  const custom = store.get(LS.bank, []).length;
-  $('#bankInfo').textContent = G.bank.length + (custom ? ' (' + custom + ' impor)' : '');
+  const kelasCustom = store.get(LS.bank, []).filter(c => Number(c.kelas || G.kelas) === G.kelas).length;
+  $('#bankInfo').textContent = G.bank.length + (kelasCustom ? ' (' + kelasCustom + ' impor)' : '');
   $('#intervalRange').value = G.interval;
   $('#intVal').textContent = G.interval;
-  Array.from($('#diffSeg').children).forEach(b => b.classList.toggle('on', b.dataset.diff === G.diff));
+  $('#kelasVal').textContent = G.kelas;
+  Array.from($('#kelasSeg').children).forEach(b => b.classList.toggle('on', Number(b.dataset.kelas) === G.kelas));
+  applyRoleUI();
+  renderScores();
 }
 function downloadTemplate() {
   const csv = [
@@ -870,17 +962,53 @@ $('#btnPause').addEventListener('click', pauseGame);
 $('#btnResume').addEventListener('click', resumeGame);
 $('#qBtnContinue').addEventListener('click', continueRun);
 
-$('#diffSeg').addEventListener('click', e => {
-  const b = e.target.closest('button[data-diff]');
+$('#kelasSeg').addEventListener('click', e => {
+  const b = e.target.closest('button[data-kelas]');
   if (!b) return;
-  G.diff = b.dataset.diff;
-  store.set(LS.diff, G.diff);
+  G.kelas = clamp(parseInt(b.dataset.kelas, 10), 1, 6);
+  store.set(LS.kelas, G.kelas);
+  buildBank();
   refreshMenu();
+  renderBankList();
+  toast('Soal Kelas ' + G.kelas + ' siap dimainkan');
 });
 $('#intervalRange').addEventListener('input', e => {
   G.interval = parseInt(e.target.value, 10);
   $('#intVal').textContent = G.interval;
   store.set(LS.interval, G.interval);
+});
+
+/* ---- layar login ---- */
+let loginRole = 'player';
+$('#roleSeg').addEventListener('click', e => {
+  const b = e.target.closest('button[data-role]');
+  if (!b) return;
+  loginRole = b.dataset.role;
+  Array.from($('#roleSeg').children).forEach(x => x.classList.toggle('on', x.dataset.role === loginRole));
+  $('#fPlayer').classList.toggle('hidden', loginRole !== 'player');
+  $('#fAdmin').classList.toggle('hidden', loginRole !== 'admin');
+  $('#loginError').textContent = '';
+});
+function doLogin() {
+  const err = $('#loginError');
+  const res = loginRole === 'admin'
+    ? loginAdmin($('#loginUser').value, $('#loginPass').value)
+    : loginPlayer($('#loginName').value);
+  if (!res.ok) { err.textContent = res.msg; return; }
+  err.textContent = '';
+}
+$('#btnLogin').addEventListener('click', doLogin);
+$('#loginName').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$('#loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$('#btnLogout').addEventListener('click', () => { logout(); toast('Anda telah keluar'); });
+$('#btnPass').addEventListener('click', () => {
+  const v = $('#newPass').value.trim();
+  const box = $('#passResult');
+  if (v.length < 4) { box.textContent = 'Kata sandi minimal 4 karakter.'; box.className = 'result err'; return; }
+  store.set(LS.admin, { user: adminCreds().user, pass: v });
+  $('#newPass').value = '';
+  box.textContent = 'Kata sandi admin berhasil diganti.';
+  box.className = 'result ok';
 });
 
 function openImport() {
@@ -926,12 +1054,27 @@ document.addEventListener('drop', e => e.preventDefault());
 
 /* ==================== INIT ==================== */
 buildBank();
-refreshMenu();
 renderBankList();
 updateHud();
 requestAnimationFrame(loop);
 
+const savedSession = store.get(LS.session, null);
+if (savedSession && savedSession.name) {
+  AUTH.role = savedSession.role === 'admin' ? 'admin' : 'player';
+  AUTH.name = savedSession.name;
+  showMenu();
+} else {
+  G.mode = 'login';
+  refreshMenu();
+  renderScores();
+}
+
+function ensureLogin() {
+  if (G.mode !== 'login') return;
+  loginPlayer('Tamu');
+}
 if (location.hash === '#play') {
+  ensureLogin();
   startGame();
   G.dist = 320;
   G.objs.push(
@@ -942,5 +1085,9 @@ if (location.hash === '#play') {
   for (let i = 0; i < 5; i++) G.objs.push({ type: 'coin', lane: 0, d: 12 + i * 2.2, hit: false });
   updateHud();
 }
-if (location.hash === '#soal') { startGame(); openQuestion(); }
-if (location.hash === '#impor') openImport();
+if (location.hash === '#soal') { ensureLogin(); startGame(); openQuestion(); }
+if (location.hash === '#impor') {
+  const c = adminCreds();
+  loginAdmin(c.user, c.pass);
+  openImport();
+}
