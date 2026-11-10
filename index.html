@@ -78,7 +78,7 @@
     <div class="stat-row">
       <span class="chip" id="whoami">PEMAIN</span>
       <span class="chip">REKOR: <b id="bestScore">0</b></span>
-      <span class="chip">BANK SOAL: <b id="bankInfo">0</b></span>
+      <span class="chip" id="bankChip">BANK SOAL: <b id="bankInfo">0</b></span>
     </div>
 
     <label class="field">
@@ -94,7 +94,7 @@
       <small>Pilih kelas sesuai jenjang, maka soal yang keluar sesuai materi kelas tersebut.</small>
     </label>
 
-    <label class="field">
+    <label class="field" id="intervalField">
       <span>Jeda berhenti (jarak antar soal): <b id="intVal">700</b> m</span>
       <input type="range" id="intervalRange" min="250" max="2000" step="50" value="700">
       <small>Makin kecil, makin sering berhenti mengerjakan soal.</small>
@@ -211,6 +211,9 @@
 <div id="toast" class="toast hidden"></div>
 
 <script src="soal.js"></script>
+<script src="soal-bahasa.js"></script>
+<script src="soal-fakta.js"></script>
+<script src="soal-gen.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

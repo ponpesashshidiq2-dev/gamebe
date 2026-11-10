@@ -110,8 +110,9 @@ sandbox.window.document = documentStub;
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 
-const srcSoal = fs.readFileSync(path.join(__dirname, 'soal.js'), 'utf8');
-vm.runInContext(srcSoal, sandbox, { filename: 'soal.js' });
+['soal.js', 'soal-bahasa.js', 'soal-fakta.js', 'soal-gen.js'].forEach(f => {
+  vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), sandbox, { filename: f });
+});
 const src = fs.readFileSync(path.join(__dirname, 'game.js'), 'utf8');
 vm.runInContext(src, sandbox, { filename: 'game.js' });
 
@@ -142,15 +143,34 @@ ok(run('loginPlayer("Budi").ok') === true, 'pemain masuk cukup dengan nama');
 ok(!getEl('menu').classList.contains('hidden'), 'menu tampil setelah login');
 ok(getEl('login').classList.contains('hidden'), 'layar login disembunyikan');
 ok(run('isAdmin()') === false, 'pemain bukan admin');
+ok(getEl('btnBank').classList.contains('hidden'), 'pemain TIDAK melihat tombol LIHAT BANK SOAL');
+ok(getEl('bankChip').classList.contains('hidden'), 'pemain TIDAK melihat chip BANK SOAL');
+ok(getEl('intervalField').classList.contains('hidden'), 'pemain TIDAK melihat slider jeda berhenti');
 
 /* akses berdasarkan peran */
 run('logout(); loginAdmin("admin", adminCreds().pass);');
 ok(!getEl('btnImport').classList.contains('hidden'), 'admin melihat tombol kelola soal');
 ok(!getEl('adminTools').classList.contains('hidden'), 'admin melihat perangkat impor');
+ok(!getEl('btnBank').classList.contains('hidden'), 'admin melihat tombol LIHAT BANK SOAL');
+ok(!getEl('bankChip').classList.contains('hidden'), 'admin melihat chip BANK SOAL');
+ok(!getEl('intervalField').classList.contains('hidden'), 'admin melihat slider jeda berhenti');
 run('logout(); loginPlayer("Budi");');
 ok(getEl('btnImport').classList.contains('hidden'), 'pemain TIDAK melihat tombol kelola soal');
 ok(getEl('adminTools').classList.contains('hidden'), 'pemain TIDAK melihat perangkat impor');
+ok(getEl('btnBank').classList.contains('hidden'), 'pemain TIDAK melihat tombol LIHAT BANK SOAL');
+ok(getEl('bankChip').classList.contains('hidden'), 'pemain TIDAK melihat chip BANK SOAL');
+ok(getEl('intervalField').classList.contains('hidden'), 'pemain TIDAK melihat slider jeda berhenti');
 ok(getEl('whoami').innerHTML.indexOf('Budi') >= 0, 'menu menampilkan nama pemain');
+
+/* ---------- 0b. bank 1000 soal per kelas ---------- */
+for (let k = 1; k <= 6; k++) {
+  const bank = run('BANK_BY_CLASS[' + k + ']');
+  ok(bank.length === 1000, 'kelas ' + k + ' berisi 1000 soal (' + bank.length + ')');
+  const bad = bank.filter(x => !x || !x.q || !Array.isArray(x.opts) || x.opts.length !== 4 ||
+    !Number.isInteger(x.ans) || x.ans < 0 || x.ans > 3 || !x.subj);
+  const dup = bank.length - new Set(bank.map(x => x.q)).size;
+  ok(bad.length === 0 && dup === 0, 'kelas ' + k + ': semua soal valid, unik, 4 opsi (' + bad.length + ' cacat, ' + dup + ' dup)');
+}
 
 ok(getEl('bankInfo').textContent.indexOf(String(expectedBank)) >= 0, 'menu: bank soal kelas 1 = ' + expectedBank + ' (' + getEl('bankInfo').textContent + ')');
 ok(String(getEl('bankCount').textContent) === String(expectedBank), 'daftar bank berisi ' + expectedBank + ' soal');

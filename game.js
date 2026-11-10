@@ -100,6 +100,9 @@ function showMenu() {
 function applyRoleUI() {
   const admin = isAdmin();
   $('#btnImport').classList.toggle('hidden', !admin);
+  $('#btnBank').classList.toggle('hidden', !admin);
+  $('#bankChip').classList.toggle('hidden', !admin);
+  $('#intervalField').classList.toggle('hidden', !admin);
   $('#adminTools').classList.toggle('hidden', !admin);
   $('#passBox').classList.toggle('hidden', !admin);
   $('#importTitle').textContent = admin ? 'Kelola Soal' : 'Bank Soal';
