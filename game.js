@@ -495,6 +495,7 @@ const SPRITES = {};
   if (typeof Image === 'undefined') return;
   const list = {
     player: 'sprites/player.svg',
+    playerPhoto: 'sprites/player-school.png',
     train: 'sprites/train.svg',
     barrier: 'sprites/barrier.svg',
     coin: 'sprites/coin.svg'
@@ -748,14 +749,16 @@ function drawPlayer() {
   ctx.ellipse(x, feet, U * 0.3 * (1 - G.y * 0.2), U * 0.07, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  if (SPRITES.player) {
+  if (SPRITES.playerPhoto || SPRITES.player) {
+    const sp = SPRITES.playerPhoto || SPRITES.player;
+    const aspect = sp.naturalWidth && sp.naturalHeight ? sp.naturalWidth / sp.naturalHeight : 1;
     const bob = running ? Math.abs(Math.sin(t * 13)) * U * 0.05 : 0;
     const tilt = clamp((G.lane - G.x) * 0.35, -0.28, 0.28);
-    const w = U * 1.05, h = U * 1.05;
+    const h = U * 1.5, w = h * aspect;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(tilt);
-    ctx.drawImage(SPRITES.player, -w / 2, -h + bob, w, h);
+    ctx.drawImage(sp, -w / 2, -h + bob, w, h);
     ctx.restore();
     ctx.restore();
     return;
@@ -915,6 +918,39 @@ function makePlayer3D() {
   P.add(brim);
   return { group: P, legL: legL, legR: legR, armL: armL, armR: armR };
 }
+function makePhoto3D(img) {
+  const c = document.createElement('canvas');
+  c.width = img.width;
+  c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const data = g.getImageData(0, 0, img.width, img.height).data;
+  let x0 = img.width, x1 = -1, y0 = img.height, y1 = -1;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      if (data[(y * img.width + x) * 4 + 3] > 16) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < x0) throw new Error('foto kosong');
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  const crop = document.createElement('canvas');
+  crop.width = bw;
+  crop.height = bh;
+  crop.getContext('2d').drawImage(c, x0, y0, bw, bh, 0, 0, bw, bh);
+  const tex = new THREE.CanvasTexture(crop);
+  const h = 2.0, w = h * (bw / bh);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide
+    }));
+  mesh.position.y = h / 2;
+  return mesh;
+}
 function makeObjMesh(o) {
   if (o.type === 'coin') {
     const g = new THREE.Group();
@@ -1033,6 +1069,21 @@ function init3D() {
 
     const player = makePlayer3D();
     scene.add(player.group);
+    if (typeof Image !== 'undefined') {
+      const photo = new Image();
+      photo.onload = () => {
+        if (!R3) return;
+        try {
+          const mesh = makePhoto3D(photo);
+          for (const ch of player.group.children.slice()) ch.visible = false;
+          player.group.add(mesh);
+          player.photo = mesh;
+        } catch (e) {
+          if (typeof console !== 'undefined') console.warn('foto pemain gagal dipakai.', e);
+        }
+      };
+      photo.src = 'sprites/player-school.png';
+    }
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
@@ -1104,6 +1155,7 @@ function render3D() {
     P.legR.rotation.x = -swing * 0.8;
     P.armL.rotation.x = -swing * 0.7;
     P.armR.rotation.x = swing * 0.7;
+    if (P.photo) P.photo.rotation.z = running ? Math.sin(t * 13) * 0.05 : 0;
     P.group.visible = !(G.invuln > 0 && Math.floor(t * 12) % 2 === 0);
     R.shadow.visible = true;
     R.shadow.position.x = G.x * 2.2;
