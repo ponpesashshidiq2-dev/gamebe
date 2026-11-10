@@ -131,7 +131,7 @@ const G = {
   nextQ: 600, qStartInterval: 700,
   bank: [], queue: [], qi: 0,
   asked: 0, firstTry: 0, miss: 0, tries: 0,
-  current: null, qOpenAt: 0, answered: false,
+  current: null, qOpenAt: 0, answered: false, wrongAt: 0,
   invuln: 0, shake: 0, flash: 0
 };
 
@@ -312,16 +312,17 @@ function answer(i, btn) {
     G.tries++;
     G.miss++;
     btn.classList.add('wrong');
-    btn.disabled = true;
+    Array.from($('#qOptions').children).forEach(el => { el.disabled = true; });
     const qcard = $('.qcard');
     qcard.classList.remove('shake');
     void qcard.offsetWidth;
     qcard.classList.add('shake');
     const fb = $('#qFeedback');
     fb.className = 'feedback bad';
-    fb.textContent = 'Belum tepat. Coba lagi sampai benar!';
-    const left = Array.from($('#qOptions').children).filter(el => !el.disabled).length;
-    if (left <= 1) toast('Tinggal satu pilihan, perhatikan baik-baik', 'bad');
+    fb.textContent = 'Jawaban salah! Permainan diulangi dari awal...';
+    toast('Jawaban salah! Ulangi dari awal', 'bad');
+    G.mode = 'wrong';
+    G.wrongAt = performance.now();
   }
 }
 function continueRun() {
@@ -373,6 +374,14 @@ function update(dt) {
   }
   if (G.mode === 'question') {
     $('#qTimer').textContent = Math.floor((performance.now() - G.qOpenAt) / 1000) + 's';
+    return;
+  }
+  if (G.mode === 'wrong') {
+    if (performance.now() - G.wrongAt > 1600) {
+      $('#questionModal').classList.add('hidden');
+      startGame();
+      toast('Jawaban salah! Permainan diulangi dari awal', 'bad');
+    }
     return;
   }
   if (G.mode !== 'running') return;

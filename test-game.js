@@ -225,18 +225,32 @@ const distAtQ = run('G.dist');
 frames(30);
 ok(run('G.dist') === distAtQ, 'jarak tidak berubah saat mengerjakan soal');
 
-/* salah dulu */
+/* salah = ulangi dari awal */
 const ans = run('G.current.ans');
 const wrongIdx = ans === 0 ? 1 : 0;
 getEl('qOptions').children[wrongIdx].dispatch('click', {});
-ok(run('G.mode') === 'question', 'jawaban salah: tetap berhenti (belum boleh lanjut)');
+ok(run('G.mode') === 'wrong', 'jawaban salah: permainan disiapkan untuk diulang');
 ok(getEl('qOptions').children[wrongIdx].disabled, 'jawaban salah dinonaktifkan');
 ok(getEl('qFeedback').className.indexOf('bad') >= 0, 'umpan balik salah tampil');
-ok(getEl('qBtnContinue').classList.contains('hidden'), 'tombol lanjut belum muncul');
+ok(getEl('qFeedback').textContent.indexOf('ulangi dari awal') >= 0, 'pesan ulangi dari awal: ' + getEl('qFeedback').textContent);
+ok(getEl('qBtnContinue').classList.contains('hidden'), 'tombol lanjut tidak muncul');
 ok(run('G.miss') === 1, 'terhitung 1 jawaban salah');
 
+guard = 0;
+while (run('G.mode') === 'wrong' && guard++ < 300) frames(1);
+ok(run('G.mode') === 'running', 'setelah salah, permainan berjalan lagi dari awal');
+ok(getEl('questionModal').classList.contains('hidden'), 'modal soal ditutup saat ulang');
+ok(run('G.dist') < 5, 'jarak diulangi dari awal (' + Number(run('G.dist')).toFixed(1) + ' m)');
+ok(run('G.score') === 0, 'skor direset ke 0');
+ok(run('G.lives') === run('levelOf(G.kelas).lives'), 'nyawa direset penuh (' + run('G.lives') + ')');
+
 /* benar */
-getEl('qOptions').children[ans].dispatch('click', {});
+run('G.nextQ = G.dist + 2');
+guard = 0;
+while (run('G.mode') !== 'question' && guard++ < 200) frames(1);
+ok(run('G.mode') === 'question', 'soal baru muncul setelah diulang');
+const ans2 = run('G.current.ans');
+getEl('qOptions').children[ans2].dispatch('click', {});
 ok(run('G.answered') === true, 'jawaban benar diterima');
 ok(!getEl('qBtnContinue').classList.contains('hidden'), 'tombol lanjut muncul');
 ok(getEl('qFeedback').className.indexOf('good') >= 0, 'umpan balik benar tampil');
