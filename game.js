@@ -479,6 +479,22 @@ function updateHud() {
 }
 
 /* ==================== RENDER ==================== */
+const SPRITES = {};
+(function loadSprites() {
+  if (typeof Image === 'undefined') return;
+  const list = {
+    player: 'sprites/player.svg',
+    train: 'sprites/train.svg',
+    barrier: 'sprites/barrier.svg',
+    coin: 'sprites/coin.svg'
+  };
+  Object.keys(list).forEach(k => {
+    const img = new Image();
+    img.onload = () => { SPRITES[k] = img; };
+    img.src = list[k];
+  });
+})();
+
 const buildings = [];
 (function initBuildings() {
   for (let i = 0; i < 26; i++) {
@@ -596,9 +612,17 @@ function drawCoin(o) {
   if (p.k <= 0.02) return;
   const r = Math.max(2, p.k * H * 0.035);
   const cy = p.y - p.k * H * 0.07 - r;
+  const sq = Math.abs(Math.sin(performance.now() / 260 + o.d));
+  if (SPRITES.coin) {
+    const w = r * 2 * (0.45 + 0.55 * sq), h = r * 2;
+    ctx.save();
+    ctx.translate(p.x, cy);
+    ctx.drawImage(SPRITES.coin, -w / 2, -h / 2, w, h);
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.translate(p.x, cy);
-  const sq = Math.abs(Math.sin(performance.now() / 260 + o.d));
   ctx.scale(0.45 + 0.55 * sq, 1);
   ctx.fillStyle = '#ffcf3f';
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
@@ -614,6 +638,13 @@ function drawBarrier(o) {
   const p = project(o.lane, o.d);
   if (p.k <= 0.02) return;
   const u = p.k * H;
+  if (SPRITES.barrier) {
+    const w = u * 0.2, h = u * 0.14;
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, w * 0.5, h * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.drawImage(SPRITES.barrier, p.x - w / 2, p.y - h, w, h);
+    return;
+  }
   const w = u * 0.17, h = u * 0.11;
   const x = p.x - w / 2, y = p.y - h;
   ctx.fillStyle = 'rgba(0,0,0,.28)';
@@ -663,15 +694,19 @@ function drawTrain(o) {
   ctx.closePath(); ctx.fill();
 
   // muka depan
-  rr(ctx, pN.x - wN / 2, pN.y - hN, wN, hN, wN * 0.12);
-  ctx.fillStyle = '#e23b4c'; ctx.fill();
-  // jendela depan
-  rr(ctx, pN.x - wN * 0.36, pN.y - hN * 0.86, wN * 0.72, hN * 0.34, wN * 0.08);
-  ctx.fillStyle = '#9fd8ff'; ctx.fill();
-  // lampu
-  ctx.fillStyle = '#ffe680';
-  ctx.beginPath(); ctx.arc(pN.x - wN * 0.28, pN.y - hN * 0.16, wN * 0.08, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(pN.x + wN * 0.28, pN.y - hN * 0.16, wN * 0.08, 0, Math.PI * 2); ctx.fill();
+  if (SPRITES.train) {
+    ctx.drawImage(SPRITES.train, pN.x - wN / 2, pN.y - hN, wN, hN);
+  } else {
+    rr(ctx, pN.x - wN / 2, pN.y - hN, wN, hN, wN * 0.12);
+    ctx.fillStyle = '#e23b4c'; ctx.fill();
+    // jendela depan
+    rr(ctx, pN.x - wN * 0.36, pN.y - hN * 0.86, wN * 0.72, hN * 0.34, wN * 0.08);
+    ctx.fillStyle = '#9fd8ff'; ctx.fill();
+    // lampu
+    ctx.fillStyle = '#ffe680';
+    ctx.beginPath(); ctx.arc(pN.x - wN * 0.28, pN.y - hN * 0.16, wN * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pN.x + wN * 0.28, pN.y - hN * 0.16, wN * 0.08, 0, Math.PI * 2); ctx.fill();
+  }
   // rel
   ctx.strokeStyle = 'rgba(255,255,255,.7)';
   ctx.lineWidth = Math.max(1, pN.k * 4);
@@ -700,6 +735,19 @@ function drawPlayer() {
   ctx.beginPath();
   ctx.ellipse(x, feet, U * 0.3 * (1 - G.y * 0.2), U * 0.07, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  if (SPRITES.player) {
+    const bob = running ? Math.abs(Math.sin(t * 13)) * U * 0.05 : 0;
+    const tilt = clamp((G.lane - G.x) * 0.35, -0.28, 0.28);
+    const w = U * 1.05, h = U * 1.05;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(tilt);
+    ctx.drawImage(SPRITES.player, -w / 2, -h + bob, w, h);
+    ctx.restore();
+    ctx.restore();
+    return;
+  }
 
   const hip = y - U * 0.42;
   const shoulder = y - U * 0.8;
