@@ -15,6 +15,7 @@
 html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--txt); font-family: "Segoe UI", system-ui, Roboto, Arial, sans-serif; }
 
 canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+canvas#game3d { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; z-index: 0; }
 
 .hidden { display: none !important; }
 
